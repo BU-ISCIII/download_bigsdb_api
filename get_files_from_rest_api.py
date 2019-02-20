@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from urllib.request import urlopen, URLError
 
 # -output_dir /srv/project_wgmlst/pasteur_schema schema -api_url pasteur_listeria -schema_name cgMLST1748 
+# -out /srv/tmp/ schema -api_url enterobase -schema_name wgMLST -database ecoli -api_key  API_KEY_ENTEROBASE 
 
 def open_log(log_name):
     working_dir = os.getcwd()
@@ -31,28 +32,74 @@ def open_log(log_name):
 
 
 def check_arg(args=None):
+    text_description = str('This program will download the locus fasta files for a selected schema using the API REST request. So far only pubMLST, bigsdb and EnteroBase are supported.')
     
-    parser = argparse.ArgumentParser(prog = 'get_files_from_rest_api.py', description="This program will download the locus fasta files for the selecting schema using the API REST request.")
-    #group = parser.add_mutually_exclusive_group()
-    #group.add_argument ('-a', help = 'Interactive locus download.')
-    #group.add_argument ('-b' , help = 'opcion b')
-    parser.add_argument('-output_dir', help = 'Directory where the result files will be stored')
+    parser = argparse.ArgumentParser(prog = 'get_files_from_rest_api.py', 
+                                    formatter_class=argparse.RawDescriptionHelpFormatter,
+                                    description = text_description)
+    parser.add_argument('-v' ,'--version', action='version', version='%(prog)s 0.1.3')
+    
+    parser.add_argument('-out','-output_dir', help = 'Directory where the result files will be stored')
     subparser = parser.add_subparsers(help = 'interactive/schema are the 2 available options to download the locus', dest = 'chosen_method')
     
-    interactive_parser = subparser.add_parser('interactive', help = 'interactive way to downloads the  schema locus')
-    interactive_parser.add_argument('-db_url', help = 'database url to download the locus files. "pubMLST" value can be used as nick name to connect to pubMLST database')
+    interactive_parser = subparser.add_parser('interactive', help = 'interactive downloads the  schema for pubMLST and bigsdb ')
+    interactive_parser.add_argument('-db','--db_url', choices = ['pubMLST',''] ,help = 'database url to download the locus files. "pubMLST" value can be used as nick name to connect to pubMLST database')
     
     schema_parser = subparser.add_parser('schema', help = 'Download the locus fasta files for a given schema')
-    schema_parser.add_argument('-api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
-    schema_parser.add_argument('-schema_name', help = 'Name of the schema where the locus are defined')
-    
-    
-    
-    
+    schema_parser.add_argument('--api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
+    schema_parser.add_argument('--schema_name', help = 'Name of the schema where the locus are defined')
+    schema_parser.add_argument('--database', help = 'Database name reqired for enterobase', required= False)
+    schema_parser.add_argument('--api_key', help = 'File name with the Token Key for enterobase', required= False)
+
     #parser.add_argument('-api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
     #parser.add_argument('-schema_name', help = 'Name of the schema where the locus are defined')
     
     return parser.parse_args()
+
+def enterobase_create_request(address):
+    '''
+    Description:
+        Function used for enterobase REST_API to build the header request
+        with the API_KEY of the user
+        Return request
+    Input:
+        address    # string containg the address to connect to the server
+    variables:
+        api_token # contain the Token key of the user
+        base64string    # Api Key in base64 format 
+    Return:
+        True /False
+    '''
+    with open ('API_KEY_ENTEROBASE' ,'r') as key_file :
+        api_token = key_file.read()
+    request = urllib.request.Request(request_str)
+    #request = urllib2.Request(request_str)
+    base64string = base64.encodebytes(('%s:%s' % (api_token,'')).encode()).decode().replace('\n', '')
+    request.add_header("Authorization", "Basic %s" % base64string)
+    return request
+
+
+
+def get_locus_enterobase (api_url, database, schema_name):
+    '''
+    Description:
+        Function will check if all projects given in the project list
+        are defined on database
+        Return True if all are in , False if not
+    Input:
+        project_list    #list of the project to check
+    variables:
+        logger # logging object to write in the log file
+    Return:
+        True /False
+    '''
+    #/loci?limit=5&offset=0&scheme=wgMLST
+    address = SERVER_ADDRESS + '/api/v2.0/%s/schemes?scheme_name=%s&limit=%d&scheme=%s' %(DATABASE, scheme, 4000, scheme)
+    response = urlopen(enterobase_create_request(address))
+    data = json.load(response)
+    import pdb; pdb.set_trace()
+    return True
+
 
 def get_locus_list( api_url, schema_name, logger):
     r = requests.get(api_url)
@@ -105,7 +152,8 @@ def download_fasta_locus (locus_list, output_dir, logger):
 api_url = {'bigsdb':'http://api.bigsdb.pasteur.fr' ,
            'pasteur_listeria': 'http://api.bigsdb.pasteur.fr/db/pubmlst_listeria_seqdef_public/schemes' ,
            'pubMLST_neisseria' : 'http://rest.pubmlst.org/db/pubmlst_neisseria_isolates/isolates',
-           'pubMLST' : 'http://rest.pubmlst.org/'}
+           'pubMLST' : 'http://rest.pubmlst.org/',
+           'enterobase': 'http://enterobase.warwick.ac.uk/api/v2.0/'}
 
 def url_validation (url):
     result = urlparse(url)
@@ -150,21 +198,18 @@ def get_database_options (db_url, logger):
     return r.json()
 
 if __name__ == '__main__' :
-    version = ' get_files_from_rest_api  V0.0.1'
+
     if len (sys.argv) == 1 :
         print('Usage: get_files_from_rest_api.py [OPTION] ')
-        print('Try get_files_from_rest_api.py --help for more information.')
+        print('Try  get_files_from_rest_api.py --help for more information.')
         exit(0)
-    if sys.argv[1] == '-v' or sys.argv[1] == '--version':
-        print( version, '\n')
-        exit (0)
     arguments = check_arg(sys.argv[1:])
     start_time = datetime.now()
     # open log file
     logger = open_log ('rest_api.log')
     
     try:
-        os.makedirs(arguments.output_dir)
+        os.makedirs(arguments.out)
     except:
         print('Unable to create the directory to download the files\n')
         exit (0)
@@ -241,8 +286,11 @@ if __name__ == '__main__' :
             exit (0)
         else :
             rest_api_url = api_url [arguments.api_url]
-        
-        locus_list = get_locus_list (rest_api_url, arguments.schema_name, logger)
+
+        if api_url == 'enterobase':
+            locus_list = get_locus_enterobase (rest_api_url, arguments.schema_name)
+        else:
+            locus_list = get_locus_list (rest_api_url, arguments.schema_name, logger)
         if not locus_list :
             logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
             print ('Unable to get the locus list for the schema ' , arguments.schema_name )
