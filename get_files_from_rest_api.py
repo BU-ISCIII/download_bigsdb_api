@@ -7,7 +7,10 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import requests
 from urllib.parse import urlparse
-from urllib.request import urlopen, URLError
+#from urllib.request import urlopen, URLError
+
+#import json
+from rest_api_class.model import *
 
 # -output_dir /srv/project_wgmlst/pasteur_schema schema -api_url pasteur_listeria -schema_name cgMLST1748 
 # -out /srv/tmp/ schema -api_url enterobase -schema_name wgMLST -database ecoli -api_key  API_KEY_ENTEROBASE 
@@ -72,15 +75,36 @@ def enterobase_create_request(address):
     '''
     with open ('API_KEY_ENTEROBASE' ,'r') as key_file :
         api_token = key_file.read()
-    request = urllib.request.Request(request_str)
+    request = urllib.request.Request(address)
     #request = urllib2.Request(request_str)
     base64string = base64.encodebytes(('%s:%s' % (api_token,'')).encode()).decode().replace('\n', '')
     request.add_header("Authorization", "Basic %s" % base64string)
     return request
 
+'''
+{
+  "links": {
+    "paging": {
+      "next": "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
+    },
+    "records": 50,
+    "total____records": 25002
+  },
+  "loci": [
+    {
+      "database": "ESCwgMLST",
+      "download_alleles_link": "http://enterobase.warwick.ac.uk/schemes/Escherichia.wgMLST/b3356.fasta.gz",
+      "locus": "b3356",
+      "locus_barcode": "ESW_AA0001AA_LO",
+      "scheme": "wgMLSTv1"
+    }
+'''
+def get_number_of_records ():
 
+    
+    return number_of_records
 
-def get_locus_enterobase (api_url, database, schema_name):
+def download_locus_enterobase (api_url, api_key, database, schema):
     '''
     Description:
         Function will check if all projects given in the project list
@@ -93,10 +117,17 @@ def get_locus_enterobase (api_url, database, schema_name):
     Return:
         True /False
     '''
+    '''
     #/loci?limit=5&offset=0&scheme=wgMLST
-    address = SERVER_ADDRESS + '/api/v2.0/%s/schemes?scheme_name=%s&limit=%d&scheme=%s' %(DATABASE, scheme, 4000, scheme)
-    response = urlopen(enterobase_create_request(address))
+    address = api_url + '%s/%s/loci?limit=%d&scheme=%s' %(database, schema_name, 5000, schema_name)
+    #response = urlopen(enterobase_create_request(address))
+    response = urllib.request.urlopen(enterobase_create_request(address))
+    '''
+    enterobase_object = EnterobaseApi(api_url, api_key,  database, schema)
+
+    locus_address_list = enterobase_object.get_locus_in_schema()
     data = json.load(response)
+    
     import pdb; pdb.set_trace()
     return True
 
@@ -212,7 +243,7 @@ if __name__ == '__main__' :
         os.makedirs(arguments.out)
     except:
         print('Unable to create the directory to download the files\n')
-        exit (0)
+        #exit (0)
     
     if arguments.chosen_method =='interactive' :
         if arguments.db_url in api_url :
@@ -287,8 +318,10 @@ if __name__ == '__main__' :
         else :
             rest_api_url = api_url [arguments.api_url]
 
-        if api_url == 'enterobase':
-            locus_list = get_locus_enterobase (rest_api_url, arguments.schema_name)
+        if arguments.api_url == 'enterobase':
+            if not os.path.isfile(arguments.api_key):
+                exit (0)
+            locus_list = download_locus_enterobase (rest_api_url, arguments.api_key, arguments.database, arguments.schema_name)
         else:
             locus_list = get_locus_list (rest_api_url, arguments.schema_name, logger)
         if not locus_list :
