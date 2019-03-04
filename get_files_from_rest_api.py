@@ -99,12 +99,8 @@ def enterobase_create_request(address):
       "scheme": "wgMLSTv1"
     }
 '''
-def get_number_of_records ():
 
-    
-    return number_of_records
-
-def download_locus_enterobase (api_url, api_key, database, schema):
+def download_locus_enterobase (api_url, api_key, database, schema, out_dir):
     '''
     Description:
         Function will check if all projects given in the project list
@@ -115,7 +111,7 @@ def download_locus_enterobase (api_url, api_key, database, schema):
     variables:
         logger # logging object to write in the log file
     Return:
-        True /False
+        list of the downloaded loci
     '''
     '''
     #/loci?limit=5&offset=0&scheme=wgMLST
@@ -123,13 +119,20 @@ def download_locus_enterobase (api_url, api_key, database, schema):
     #response = urlopen(enterobase_create_request(address))
     response = urllib.request.urlopen(enterobase_create_request(address))
     '''
+    locus_downloaded_list =[]
     enterobase_object = EnterobaseApi(api_url, api_key,  database, schema)
 
-    locus_address_list = enterobase_object.get_locus_in_schema()
-    data = json.load(response)
-    
-    import pdb; pdb.set_trace()
-    return True
+    locus_addresses = enterobase_object.get_locus_in_schema()
+    print('Start downloading the fasta files for the schema')
+    for file_name, download_address  in locus_addresses.items():
+        try:
+            enterobase_object.download_fasta_locus (download_address, out_dir, file_name)
+            locus_downloaded_list.append(file_name)
+        except Exception as e:
+            print ('Exception error ' , e)
+            continue
+    print('Download completed')
+    return locus_downloaded_list
 
 
 def get_locus_list( api_url, schema_name, logger):
@@ -321,16 +324,23 @@ if __name__ == '__main__' :
         if arguments.api_url == 'enterobase':
             if not os.path.isfile(arguments.api_key):
                 exit (0)
-            locus_list = download_locus_enterobase (rest_api_url, arguments.api_key, arguments.database, arguments.schema_name)
+            result_download = download_locus_enterobase (rest_api_url, arguments.api_key, 
+                            arguments.database, arguments.schema_name,arguments.out)
+            if 'Error' in result_download :
+                print ('Some errors found when download locus for enterobase',
+                        '\n Check log files\n')
+            else:
+                print ('Download was completed')
+                    
         else:
             locus_list = get_locus_list (rest_api_url, arguments.schema_name, logger)
-        if not locus_list :
-            logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
-            print ('Unable to get the locus list for the schema ' , arguments.schema_name )
-            exit(0)
-        fasta_locus = download_fasta_locus ( locus_list, arguments.output_dir, logger)
-        if not fasta_locus :
-            logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
-            print('Some of the alleles files cannot be downloaded. Check log file')
-        else:
-            print ('All alleles have been downloaded from the schema')
+            if not locus_list :
+                logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
+                print ('Unable to get the locus list for the schema ' , arguments.schema_name )
+                exit(0)
+            fasta_locus = download_fasta_locus ( locus_list, arguments.output_dir, logger)
+            if not fasta_locus :
+                logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
+                print('Some of the alleles files cannot be downloaded. Check log file')
+            else:
+                print ('All alleles have been downloaded from the schema')

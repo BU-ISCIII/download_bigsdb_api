@@ -2,6 +2,9 @@
 import urllib.request 
 import base64
 import json
+import os
+import io 
+import gzip
 
 # "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
 
@@ -16,12 +19,6 @@ class EnterobaseApi :
         self.api_url = api_url
 
 
-    def __iter__ (self):
-        return self
-    '''  
-    def __next__ (self):
-        self.
-    '''
     def _compose_auth_header ( self, api_key):
         '''
         Description:
@@ -32,16 +29,26 @@ class EnterobaseApi :
 
         return  ["Authorization", "Basic %s" % base64string]
 
+    def _get_number_of_records_to_fetch (self, data) :
+        
+        return int(data['links']["total____records"])
+    
     def get_locus_in_schema (self):
         '''
         Description:
-            Function used for getting the location of the locis for the schema in enterobase 
-            Return a list with the http address foe each loci in the schema
+            Function used for getting the location of the loci for the 
+            schema in enterobase 
+            Return a dictionnary with loci name as key and the http address 
+            for each loci in the schema in the value
         '''
         not_completed = True
-        locus_addr = []
-        address =  '%s%s/%s/loci?limit=%d&scheme=%s' %(self.api_url ,self.database, self.schema, 5000, self.schema)
+        locus_addr = {}
+        offset = 0
+        limit = 5000
+        
         while not_completed :
+            address =  '%s%s/%s/loci?scheme=%s&limit=%d&offset=%d' %(self.api_url ,self.database, self.schema,  self.schema, limit ,offset )
+            print (address)
             request = urllib.request.Request(address)
             request.add_header(self.auth_header[0] , self.auth_header[1])
             
@@ -49,13 +56,21 @@ class EnterobaseApi :
             response = urllib.request.urlopen(request)
 
             data = json.load(response)
+            total_records = self._get_number_of_records_to_fetch (data)
             
-            import pdb; pdb.set_trace()
-            for loci_addr in ['loci']['download_alleles_link']:
-                locus_addr.append(loci_addr)
-            
-            if not 'next' in data['links']:
+            for loci_addr in data['loci'] :
+                locus_addr[loci_addr['locus']] = loci_addr['download_alleles_link']
+            '''
+            if not 'next' in data['links']['paging']:
                 not_completed = False
+            else:
+                address = data['links']['paging']['next']
+            '''
+            offset += limit
+            if total_records < limit :
+                not_completed = True
+            print ('Fetched ' + str(offset) +' locus address from total of  ', str(total_records) , 'records')
+            import pdb; pdb.set_trace()
             
         '''
         "links": {
@@ -74,5 +89,33 @@ class EnterobaseApi :
               "scheme": "wgMLSTv1"
             }
         '''
+        
         return locus_addr
         
+
+    def download_fasta_locus (self, download_address, out_dir, loci_name):
+        
+        request = urllib.request.Request(download_address)
+        request.add_header(self.auth_header[0] , self.auth_header[1])
+        response = urllib.request.urlopen(request)
+        
+        file_name = os.path.join(out_dir, loci_name + '.fasta')
+
+        try:
+            if download_address.endswith('.gz') :
+                in_ = io.BytesIO()
+                in_.write(response.read())
+                in_.seek(0)
+                
+                with gzip.GzipFile(fileobj=in_, mode='rb') as fo:
+                    gunzipped_bytes_obj = fo.read()
+                
+            else :
+                data = response.read()
+            with open (file_name, 'w') as fh:
+                fh.write(gunzipped_bytes_obj.decode())
+        except: 
+            print('Error when writting ', file_name)
+            raise 
+            
+        return True
