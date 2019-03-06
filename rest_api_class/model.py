@@ -41,12 +41,12 @@ class EnterobaseApi :
             Return a dictionnary with loci name as key and the http address 
             for each loci in the schema in the value
         '''
-        not_completed = True
+        more_to_fetch = True
         locus_addr = {}
         offset = 0
         limit = 5000
         
-        while not_completed :
+        while more_to_fetch :
             address =  '%s%s/%s/loci?scheme=%s&limit=%d&offset=%d' %(self.api_url ,self.database, self.schema,  self.schema, limit ,offset )
             print (address)
             request = urllib.request.Request(address)
@@ -68,9 +68,9 @@ class EnterobaseApi :
             '''
             offset += limit
             if total_records < limit :
-                not_completed = True
+                more_to_fetch = False
             print ('Fetched ' + str(offset) +' locus address from total of  ', str(total_records) , 'records')
-            import pdb; pdb.set_trace()
+            
             
         '''
         "links": {
@@ -89,7 +89,7 @@ class EnterobaseApi :
               "scheme": "wgMLSTv1"
             }
         '''
-        
+        import pdb; pdb.set_trace()
         return locus_addr
         
 
@@ -106,7 +106,6 @@ class EnterobaseApi :
                 in_ = io.BytesIO()
                 in_.write(response.read())
                 in_.seek(0)
-                
                 with gzip.GzipFile(fileobj=in_, mode='rb') as fo:
                     gunzipped_bytes_obj = fo.read()
                 
