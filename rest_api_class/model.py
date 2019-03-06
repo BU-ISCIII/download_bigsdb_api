@@ -1,5 +1,4 @@
-#"http://enterobase.warwick.ac.uk/api/v2.0/login"
-import urllib.request 
+import urllib.request ,  urllib.error
 import base64
 import json
 import os
@@ -45,51 +44,27 @@ class EnterobaseApi :
         locus_addr = {}
         offset = 0
         limit = 5000
+        try: 
+            while more_to_fetch :
+                address =  '%s%s/%s/loci?scheme=%s&limit=%d&offset=%d' %(self.api_url ,self.database, self.schema,  self.schema, limit ,offset )
+                print (address)
+                request = urllib.request.Request(address)
+                request.add_header(self.auth_header[0] , self.auth_header[1])
+                
+                # "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
+                response = urllib.request.urlopen(request)
+                data = json.load(response)
+                total_records = self._get_number_of_records_to_fetch (data)
+                
+                for loci_addr in data['loci'] :
+                    locus_addr[loci_addr['locus']] = loci_addr['download_alleles_link']
+                offset += limit
+                if total_records < limit :
+                    more_to_fetch = False
+                print ('Fetched ' , str(len(locus_addr)) ,' locus address. Remaining to download ', str(total_records) , ' records')
         
-        while more_to_fetch :
-            address =  '%s%s/%s/loci?scheme=%s&limit=%d&offset=%d' %(self.api_url ,self.database, self.schema,  self.schema, limit ,offset )
-            print (address)
-            request = urllib.request.Request(address)
-            request.add_header(self.auth_header[0] , self.auth_header[1])
-            
-            # "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
-            response = urllib.request.urlopen(request)
-
-            data = json.load(response)
-            total_records = self._get_number_of_records_to_fetch (data)
-            
-            for loci_addr in data['loci'] :
-                locus_addr[loci_addr['locus']] = loci_addr['download_alleles_link']
-            '''
-            if not 'next' in data['links']['paging']:
-                not_completed = False
-            else:
-                address = data['links']['paging']['next']
-            '''
-            offset += limit
-            if total_records < limit :
-                more_to_fetch = False
-            print ('Fetched ' + str(offset) +' locus address from total of  ', str(total_records) , 'records')
-            
-            
-        '''
-        "links": {
-            "paging": {
-              "next": "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
-            },
-            "records": 50,
-            "total____records": 25002
-            
-            "loci": [
-            {
-              "database": "ESCwgMLST",
-              "download_alleles_link": "http://enterobase.warwick.ac.uk/schemes/Escherichia.wgMLST/b3356.fasta.gz",
-              "locus": "b3356",
-              "locus_barcode": "ESW_AA0001AA_LO",
-              "scheme": "wgMLSTv1"
-            }
-        '''
-        import pdb; pdb.set_trace()
+        except urllib.error.URLError as e:
+            raise e
         return locus_addr
         
 

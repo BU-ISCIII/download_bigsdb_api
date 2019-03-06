@@ -7,32 +7,12 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import requests
 from urllib.parse import urlparse
-#from urllib.request import urlopen, URLError
+from utils.common_functions import *
 
-#import json
 from rest_api_class.model import *
 
 # -output_dir /srv/project_wgmlst/pasteur_schema schema -api_url pasteur_listeria -schema_name cgMLST1748 
-# -out /srv/tmp/ schema -api_url enterobase -schema_name wgMLST -database ecoli -api_key  API_KEY_ENTEROBASE 
-
-def open_log(log_name):
-    working_dir = os.getcwd()
-    log_name=os.path.join(working_dir, log_name)
-    #def create_log ():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    #create the file handler
-    handler = logging.handlers.RotatingFileHandler(log_name, maxBytes=200000, backupCount=5)
-    handler.setLevel(logging.DEBUG)
-
-    #create a Logging format
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    #add the handlers to the logger
-    logger.addHandler(handler)
-
-    return logger
-
+# -out /srv/tmp/ schema --api_url enterobase --schema_name wgMLST --database ecoli --api_key  API_KEY_ENTEROBASE 
 
 def check_arg(args=None):
     text_description = str('This program will download the locus fasta files for a selected schema using the API REST request. So far only pubMLST, bigsdb and EnteroBase are supported.')
@@ -49,56 +29,13 @@ def check_arg(args=None):
     interactive_parser.add_argument('-db','--db_url', choices = ['pubMLST',''] ,help = 'database url to download the locus files. "pubMLST" value can be used as nick name to connect to pubMLST database')
     
     schema_parser = subparser.add_parser('schema', help = 'Download the locus fasta files for a given schema')
-    schema_parser.add_argument('--api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
-    schema_parser.add_argument('--schema_name', help = 'Name of the schema where the locus are defined')
-    schema_parser.add_argument('--database', help = 'Database name reqired for enterobase', required= False)
-    schema_parser.add_argument('--api_key', help = 'File name with the Token Key for enterobase', required= False)
-
-    #parser.add_argument('-api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
-    #parser.add_argument('-schema_name', help = 'Name of the schema where the locus are defined')
+    schema_parser.add_argument('-api', '--api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
+    schema_parser.add_argument('-sch', '--schema_name', help = 'Name of the schema where the locus are defined')
+    schema_parser.add_argument('-db', '--database', help = 'Database name required for enterobase', required= False)
+    schema_parser.add_argument('-key', '--api_key', help = 'File name with the Token Key for enterobase', required= False)
     
     return parser.parse_args()
 
-def enterobase_create_request(address):
-    '''
-    Description:
-        Function used for enterobase REST_API to build the header request
-        with the API_KEY of the user
-        Return request
-    Input:
-        address    # string containg the address to connect to the server
-    variables:
-        api_token # contain the Token key of the user
-        base64string    # Api Key in base64 format 
-    Return:
-        True /False
-    '''
-    with open ('API_KEY_ENTEROBASE' ,'r') as key_file :
-        api_token = key_file.read()
-    request = urllib.request.Request(address)
-    #request = urllib2.Request(request_str)
-    base64string = base64.encodebytes(('%s:%s' % (api_token,'')).encode()).decode().replace('\n', '')
-    request.add_header("Authorization", "Basic %s" % base64string)
-    return request
-
-'''
-{
-  "links": {
-    "paging": {
-      "next": "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
-    },
-    "records": 50,
-    "total____records": 25002
-  },
-  "loci": [
-    {
-      "database": "ESCwgMLST",
-      "download_alleles_link": "http://enterobase.warwick.ac.uk/schemes/Escherichia.wgMLST/b3356.fasta.gz",
-      "locus": "b3356",
-      "locus_barcode": "ESW_AA0001AA_LO",
-      "scheme": "wgMLSTv1"
-    }
-'''
 
 def download_locus_enterobase (api_url, api_key, database, schema, out_dir):
     '''
@@ -113,25 +50,27 @@ def download_locus_enterobase (api_url, api_key, database, schema, out_dir):
     Return:
         list of the downloaded loci
     '''
-    '''
-    #/loci?limit=5&offset=0&scheme=wgMLST
-    address = api_url + '%s/%s/loci?limit=%d&scheme=%s' %(database, schema_name, 5000, schema_name)
-    #response = urlopen(enterobase_create_request(address))
-    response = urllib.request.urlopen(enterobase_create_request(address))
-    '''
     locus_downloaded_list =[]
     enterobase_object = EnterobaseApi(api_url, api_key,  database, schema)
-
-    locus_addresses = enterobase_object.get_locus_in_schema()
-    print('Start downloading the fasta files for the schema')
-    for file_name, download_address  in locus_addresses.items():
-        try:
-            enterobase_object.download_fasta_locus (download_address, out_dir, file_name)
-            locus_downloaded_list.append(file_name)
-        except Exception as e:
-            print ('Exception error ' , e)
-            continue
-    print('Download completed')
+    try:
+        locus_addresses = enterobase_object.get_locus_in_schema()
+    except  urllib.error.URLError as e :         
+        string_text = str(e) + '  '+ str(e.fp.read().decode("utf-8"))
+        logging_errors(string_text, False , True )
+        raise
+        
+    if len(locus_addresses) > 0:
+        print('Start downloading the fasta files for the schema')
+        for file_name, download_address  in locus_addresses.items():
+            try:
+                enterobase_object.download_fasta_locus (download_address, out_dir, file_name)
+                locus_downloaded_list.append(file_name)
+            except Exception as e:
+                print ('Exception error ' , e)
+                continue
+        print('Download completed')
+    else:
+        print('Error when fetching the addresses to download locus')
     return locus_downloaded_list
 
 
@@ -236,17 +175,26 @@ if __name__ == '__main__' :
     if len (sys.argv) == 1 :
         print('Usage: get_files_from_rest_api.py [OPTION] ')
         print('Try  get_files_from_rest_api.py --help for more information.')
-        exit(0)
+        exit(2)
     arguments = check_arg(sys.argv[1:])
     start_time = datetime.now()
     # open log file
-    logger = open_log ('rest_api.log')
+    log_folder = '/tmp/logs'
+    log_name = 'rest_api.log'
     
     try:
-        os.makedirs(arguments.out)
-    except:
-        print('Unable to create the directory to download the files\n')
-        #exit (0)
+        create_directory (log_folder)
+        create_directory (arguments.out)
+    except OSError as e:
+        print('Unable to create the directory \n')
+        print(e)
+        exit(1)
+    try:
+        logger = open_log (log_name, log_folder)
+    except OSError as e:
+        print('Unable to create the log file \n')
+        print(e)
+        exit(1)
     
     if arguments.chosen_method =='interactive' :
         if arguments.db_url in api_url :
@@ -255,12 +203,12 @@ if __name__ == '__main__' :
             valid_url = url_validation (arguments.db_url)
             if not valid_url :
                print ('Invalid url format')
-               exit(0)
+               exit(2)
             else:
                 db_url = arguments.db_url
         if not validate_db_conection(db_url) :
             print ('Unable to connect to database ', db_url)
-            exit(0)
+            exit(1)
         # get the available databases 
         if not 'db' in db_url :
             selection = 'databases'
@@ -317,20 +265,24 @@ if __name__ == '__main__' :
     else:
         if arguments.api_url not in api_url :
             print ('The requested rest api it is not allowed \n')
-            exit (0)
+            exit (2)
         else :
             rest_api_url = api_url [arguments.api_url]
 
         if arguments.api_url == 'enterobase':
+            logger.debug('Starting recording log activity for %s', arguments.api_url)
             if not os.path.isfile(arguments.api_key):
-                exit (0)
-            result_download = download_locus_enterobase (rest_api_url, arguments.api_key, 
+                string_text = 'File ' + arguments.api_key + ' does not exists' 
+                logging_errors(string_text, False , True )
+                exit (2)
+            try:
+                result_download = download_locus_enterobase (rest_api_url, arguments.api_key, 
                             arguments.database, arguments.schema_name,arguments.out)
-            if 'Error' in result_download :
+                print ('Download was completed')
+            except :
                 print ('Some errors found when download locus for enterobase',
                         '\n Check log files\n')
-            else:
-                print ('Download was completed')
+            
                     
         else:
             locus_list = get_locus_list (rest_api_url, arguments.schema_name, logger)
