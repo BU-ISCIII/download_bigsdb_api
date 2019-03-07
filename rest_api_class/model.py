@@ -37,8 +37,16 @@ class EnterobaseApi :
         Description:
             Function used for getting the location of the loci for the 
             schema in enterobase 
+        Variables:
+            address     # contain the http request
+            data        # contain the response information in json format
+            ofsset      # offset value in the iteration
+            remaining_records # has the number of records left to download
+            response    # response of the request
+        Return:
             Return a dictionnary with loci name as key and the http address 
-            for each loci in the schema in the value
+            for each loci in the schema in the value. or an exception if 
+            an error occurrs when connecting
         '''
         more_to_fetch = True
         locus_addr = {}
@@ -47,21 +55,20 @@ class EnterobaseApi :
         try: 
             while more_to_fetch :
                 address =  '%s%s/%s/loci?scheme=%s&limit=%d&offset=%d' %(self.api_url ,self.database, self.schema,  self.schema, limit ,offset )
-                print (address)
                 request = urllib.request.Request(address)
                 request.add_header(self.auth_header[0] , self.auth_header[1])
                 
                 # "http://enterobase.warwick.ac.uk/api/v2.0/ecoli/wgMLST/loci?scheme=wgMLST&limit=50&offset=50"
                 response = urllib.request.urlopen(request)
                 data = json.load(response)
-                total_records = self._get_number_of_records_to_fetch (data)
+                remaining_records = self._get_number_of_records_to_fetch (data)
                 
                 for loci_addr in data['loci'] :
                     locus_addr[loci_addr['locus']] = loci_addr['download_alleles_link']
                 offset += limit
                 if total_records < limit :
                     more_to_fetch = False
-                print ('Fetched ' , str(len(locus_addr)) ,' locus address. Remaining to download ', str(total_records) , ' records')
+                print ('Fetched ' , str(len(locus_addr)) ,' locus address. Remaining to download ', str(remaining_records) , ' records')
         
         except urllib.error.URLError as e:
             raise e
@@ -69,10 +76,30 @@ class EnterobaseApi :
         
 
     def download_fasta_locus (self, download_address, out_dir, loci_name):
-        
+        '''
+        Description:
+            Function used for download the fasta loci. 
+            If file is compress it is decompressed in memory and then
+            saved in fasta extension
+        Input:
+            download_address    # address to download the file
+            out_dir     # ouput directory to save the file
+            loci_name   # used to name the file
+            response    # response of the request
+        Variables:
+            in_         # contain the compress file downloaded
+            data        # contain the loci in fasta format
+        Return:
+            Return True if everthing is ok, or an exception if 
+            an error occurrs when connecting
+        '''
         request = urllib.request.Request(download_address)
         request.add_header(self.auth_header[0] , self.auth_header[1])
-        response = urllib.request.urlopen(request)
+        try:
+            response = urllib.request.urlopen(request)
+        
+        except urllib.error.URLError as e: 
+            raise e
         
         file_name = os.path.join(out_dir, loci_name + '.fasta')
 
@@ -83,13 +110,11 @@ class EnterobaseApi :
                 in_.seek(0)
                 with gzip.GzipFile(fileobj=in_, mode='rb') as fo:
                     gunzipped_bytes_obj = fo.read()
-                
             else :
                 data = response.read()
             with open (file_name, 'w') as fh:
                 fh.write(gunzipped_bytes_obj.decode())
-        except: 
-            print('Error when writting ', file_name)
-            raise 
+        except urllib.error.URLError as e: 
+            raise e
             
         return True
