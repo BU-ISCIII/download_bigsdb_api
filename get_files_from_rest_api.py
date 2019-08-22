@@ -290,7 +290,8 @@ if __name__ == '__main__' :
                 logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
                 print ('Unable to get the locus list for the schema ' , arguments.schema_name )
                 exit(0)
-            fasta_locus = download_fasta_locus ( locus_list, arguments.output_dir, logger)
+            import pdb; pdb.set_trace()
+            fasta_locus = download_fasta_locus ( locus_list, arguments.out, logger)
             if not fasta_locus :
                 logger.error('Locus list for the schema %s cannot be fetched ', arguments.schema_name)
                 print('Some of the alleles files cannot be downloaded. Check log file')
