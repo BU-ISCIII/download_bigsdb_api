@@ -8,6 +8,7 @@ from datetime import datetime
 import requests
 from urllib.parse import urlparse
 from utils.common_functions import *
+from urllib.request import urlopen
 
 from rest_api_class.model import *
 
@@ -22,7 +23,7 @@ def check_arg(args=None):
                                     description = text_description)
     parser.add_argument('-v' ,'--version', action='version', version='%(prog)s 0.1.3')
     
-    parser.add_argument('-out','-output_dir', help = 'Directory where the result files will be stored')
+    parser.add_argument('-out','--output_dir', help = 'Directory where the result files will be stored')
     subparser = parser.add_subparsers(help = 'interactive/schema are the 2 available options to download the locus', dest = 'chosen_method')
     
     interactive_parser = subparser.add_parser('interactive', help = 'interactive downloads the  schema for pubMLST and bigsdb ')
@@ -184,7 +185,7 @@ if __name__ == '__main__' :
     
     try:
         create_directory (log_folder)
-        create_directory (arguments.out)
+        create_directory (arguments.output_dir)
     except OSError as e:
         print('Unable to create the directory \n')
         print(e)
