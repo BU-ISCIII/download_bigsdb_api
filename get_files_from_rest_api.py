@@ -180,11 +180,10 @@ if __name__ == '__main__' :
     arguments = check_arg(sys.argv[1:])
     start_time = datetime.now()
     # open log file
-    log_folder = '/tmp/logs'
+    log_folder = arguments.output_dir
     log_name = 'rest_api.log'
     
     try:
-        create_directory (log_folder)
         create_directory (arguments.output_dir)
     except OSError as e:
         print('Unable to create the directory \n')
@@ -233,7 +232,7 @@ if __name__ == '__main__' :
                     exit(0)
                 else :
                     # get the schemes href
-                    db_url = db_selection[index]['href']
+                    db_url = db_selection[int(choice)]['href']
                     db_output = get_database_options (db_url, logger)
                     option_list = []
                     if 'schemes' in db_output :
