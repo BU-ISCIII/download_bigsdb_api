@@ -12,29 +12,29 @@ from urllib.request import urlopen
 
 from rest_api_class.model import *
 
-# -output_dir /srv/project_wgmlst/pasteur_schema schema -api_url pasteur_listeria -schema_name cgMLST1748 
-# -out /srv/tmp/ schema --api_url enterobase --schema_name wgMLST --database ecoli --api_key  API_KEY_ENTEROBASE 
+# -output_dir /srv/project_wgmlst/pasteur_schema schema -api_url pasteur_listeria -schema_name cgMLST1748
+# -out /srv/tmp/ schema --api_url enterobase --schema_name wgMLST --database ecoli --api_key  API_KEY_ENTEROBASE
 
 def check_arg(args=None):
     text_description = str('This program will download the locus fasta files for a selected schema using the API REST request. So far only pubMLST, bigsdb and EnteroBase are supported.')
-    
-    parser = argparse.ArgumentParser(prog = 'get_files_from_rest_api.py', 
+
+    parser = argparse.ArgumentParser(prog = 'get_files_from_rest_api.py',
                                     formatter_class=argparse.RawDescriptionHelpFormatter,
                                     description = text_description)
     parser.add_argument('-v' ,'--version', action='version', version='%(prog)s 0.1.3')
-    
+
     parser.add_argument('-out','--output_dir', help = 'Directory where the result files will be stored')
     subparser = parser.add_subparsers(help = 'interactive/schema are the 2 available options to download the locus', dest = 'chosen_method')
-    
+
     interactive_parser = subparser.add_parser('interactive', help = 'interactive downloads the  schema for pubMLST and bigsdb ')
-    interactive_parser.add_argument('-db','--db_url', choices = ['pubMLST',''] ,help = 'database url to download the locus files. "pubMLST" value can be used as nick name to connect to pubMLST database')
-    
+    interactive_parser.add_argument('-api','--api_url', choices = ['pubMLST',''] ,help = 'database url to download the locus files. "pubMLST" value can be used as nick name to connect to pubMLST database')
+
     schema_parser = subparser.add_parser('schema', help = 'Download the locus fasta files for a given schema')
     schema_parser.add_argument('-api', '--api_url', help = 'Nick name to connect to REST API : accepted values are : bigsdb , pasteur_listeria, pubMLST')
     schema_parser.add_argument('-sch', '--schema_name', help = 'Name of the schema where the locus are defined')
     schema_parser.add_argument('-db', '--database', help = 'Database name required for enterobase', required= False)
     schema_parser.add_argument('-key', '--api_key', help = 'File name with the Token Key for enterobase', required= False)
-    
+
     return parser.parse_args()
 
 
@@ -55,11 +55,11 @@ def download_locus_enterobase (api_url, api_key, database, schema, out_dir):
     enterobase_object = EnterobaseApi(api_url, api_key,  database, schema)
     try:
         locus_addresses = enterobase_object.get_locus_in_schema()
-    except  urllib.error.URLError as e :         
+    except  urllib.error.URLError as e :
         string_text = str(e) + '  '+ str(e.fp.read().decode("utf-8"))
         logging_errors(string_text, False , True )
         raise
-        
+
     if len(locus_addresses) > 0:
         print('Start downloading the fasta files for the schema')
         for file_name, download_address  in locus_addresses.items():
@@ -97,7 +97,7 @@ def get_locus_list( api_url, schema_name, logger):
     locus_list = []
     for loci in range(r_json['locus_count']) :
         locus_list.append(r_json['loci'][loci])
-            
+
     logger.info('The locus list for the schema %s has been successfully fetched ', schema_name)
     return locus_list
 
@@ -110,7 +110,7 @@ def download_fasta_locus (locus_list, output_dir, logger):
         r = requests.get(loci + '/alleles_fasta')
         if r.status_code != 200 :
             logger.error('Unable to download the fasta file  for allele %s ', loci_name)
-            
+
         else :
             fasta_alleles = r.text
             fasta_file =  os.path.join(output_dir, str(loci_name + '.fasta'))
@@ -140,12 +140,12 @@ def validate_db_conection (url) :
     except URLError:
         return False
 
-def print_menu (value_list, db_url) :
+def print_menu (value_list, api_url) :
     invalid_selection = True
     while invalid_selection :
         os.system('clear')
-        
-        print ('You are connected to database : ', db_url)
+
+        print ('You are connected to database : ', api_url)
         print ('\n')
         print(30 * '-', ' MENU ', 30 *'-','\n')
         for index, value in enumerate(value_list) :
@@ -163,11 +163,11 @@ def print_menu (value_list, db_url) :
                 invalid_selection = False
     return choice_value
 
-def get_database_options (db_url, logger):
-    r = requests.get(db_url)
-    logger.info('Connecting to %s to get the options.' , db_url)
+def get_database_options (api_url, logger):
+    r = requests.get(api_url)
+    logger.info('Connecting to %s to get the options.' , api_url)
     if r.status_code != 200 :
-        logger.error('Unable to connect to %s ', db_url)
+        logger.error('Unable to connect to %s ', api_url)
         return False
     return r.json()
 
@@ -182,7 +182,7 @@ if __name__ == '__main__' :
     # open log file
     log_folder = arguments.output_dir
     log_name = 'rest_api.log'
-    
+
     try:
         create_directory (arguments.output_dir)
     except OSError as e:
@@ -195,29 +195,29 @@ if __name__ == '__main__' :
         print('Unable to create the log file \n')
         print(e)
         exit(1)
-    
+
     if arguments.chosen_method =='interactive' :
-        if arguments.db_url in api_url :
-            db_url = api_url[arguments.db_url ]
+        if arguments.api_url in api_url :
+            api_url = api_url[arguments.api_url ]
         else :
-            valid_url = url_validation (arguments.db_url)
+            valid_url = url_validation (arguments.api_url)
             if not valid_url :
                print ('Invalid url format')
                exit(2)
             else:
-                db_url = arguments.db_url
-        if not validate_db_conection(db_url) :
-            print ('Unable to connect to database ', db_url)
+                api_url = arguments.api_url
+        if not validate_db_conection(api_url) :
+            print ('Unable to connect to database ', api_url)
             exit(1)
-        # get the available databases 
-        if not 'db' in db_url :
+        # get the available databases
+        if not 'db' in api_url :
             selection = 'databases'
-            
-            db_output = get_database_options (db_url, logger)
+
+            db_output = get_database_options (api_url, logger)
             option_list = []
             for index in range( len( db_output)) :
                 option_list.append(db_output[index]['description'])
-            choice = print_menu(option_list, db_url)
+            choice = print_menu(option_list, api_url)
             if choice == 'q' or choice == 'Q' :
                 print ('Exiting the program. Returning to shell prompt')
                 exit(0)
@@ -226,33 +226,33 @@ if __name__ == '__main__' :
                 option_list = []
                 for index in range (len(db_selection)) :
                     option_list.append(db_selection[index]['description'])
-                choice = print_menu(option_list, db_url)
+                choice = print_menu(option_list, api_url)
                 if choice == 'q' or choice == 'Q' :
                     print ('Exiting the program. Returning to shell prompt')
                     exit(0)
                 else :
                     # get the schemes href
-                    db_url = db_selection[int(choice)]['href']
-                    db_output = get_database_options (db_url, logger)
+                    api_url = db_selection[int(choice)]['href']
+                    db_output = get_database_options (api_url, logger)
                     option_list = []
                     if 'schemes' in db_output :
-                        db_url = db_output['schemes']
-                        db_output = get_database_options (db_url, logger)
+                        api_url = db_output['schemes']
+                        db_output = get_database_options (api_url, logger)
                     #    for index in range(len(db_output)) :
-                            
+
                     for index in range( len( db_output['schemes'])) :
                         option_list.append(db_output['schemes'][index]['description'])
-                    choice = print_menu(option_list, db_url)
+                    choice = print_menu(option_list, api_url)
                     if choice == 'q' or choice == 'Q' :
                         print ('Exiting the program. Returning to shell prompt')
                         exit(0)
                     # get the allele list for the schema
-                    db_url = db_output['schemes'][int(choice)]['scheme']
-                    db_output = get_database_options (db_url, logger)
+                    api_url = db_output['schemes'][int(choice)]['scheme']
+                    db_output = get_database_options (api_url, logger)
                     locus_list =[]
                     for index in range(len(db_output['loci'])):
                         locus_list.append(db_output['loci'][index])
-                    
+
                     # get gasta files for each locus
                     fasta_locus = download_fasta_locus (locus_list, arguments.output_dir, logger)
                     if not fasta_locus :
@@ -261,7 +261,7 @@ if __name__ == '__main__' :
                     else:
                         print ('All alleles have been downloaded from the schema')
 
-        print ('Exiting the interactive dialog\n Returning to shell prompt \n')  
+        print ('Exiting the interactive dialog\n Returning to shell prompt \n')
     else:
         if arguments.api_url not in api_url :
             print ('The requested rest api it is not allowed \n')
@@ -272,18 +272,18 @@ if __name__ == '__main__' :
         if arguments.api_url == 'enterobase':
             logger.debug('Starting recording log activity for %s', arguments.api_url)
             if not os.path.isfile(arguments.api_key):
-                string_text = 'File ' + arguments.api_key + ' does not exists' 
+                string_text = 'File ' + arguments.api_key + ' does not exists'
                 logging_errors(string_text, False , True )
                 exit (2)
             try:
-                result_download = download_locus_enterobase (rest_api_url, arguments.api_key, 
+                result_download = download_locus_enterobase (rest_api_url, arguments.api_key,
                             arguments.database, arguments.schema_name,arguments.out)
                 print ('Download was completed')
             except :
                 print ('Some errors found when download locus for enterobase',
                         '\n Check log files\n')
-            
-                    
+
+
         else:
             locus_list = get_locus_list (rest_api_url, arguments.schema_name, logger)
             if not locus_list :
